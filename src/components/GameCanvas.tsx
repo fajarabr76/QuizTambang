@@ -302,49 +302,49 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ actionState, tugOfWarPos, side 
       switch(mode) {
         case 'pulling':
           // REFERENSI: Orang tarik tambang menang — badan condong jauh ke belakang
-          char.torsoContainer.rotation = -0.75; // lean back ~43°
+          char.torsoContainer.rotation = -0.70; // lean back ~40°
           
           // Kedua lengan LURUS ke depan-atas memegang tali
-          char.leftArm.rotation = 1.7;
-          char.rightArm.rotation = 1.6;
-          char.leftForearm.rotation = -0.2;
-          char.rightForearm.rotation = -0.2;
+          char.leftArm.rotation = 1.70;
+          char.rightArm.rotation = 1.60;
+          char.leftForearm.rotation = -0.20;
+          char.rightForearm.rotation = -0.20;
           
           // Kuda-kuda LEBAR, lutut ditekuk dalam
-          char.leftLeg.rotation = 0.7; // kaki depan
+          char.leftLeg.rotation = 0.70; // kaki depan
           char.leftShin.rotation = -0.55;
-          char.rightLeg.rotation = -0.6; // kaki belakang
+          char.rightLeg.rotation = -0.60; // kaki belakang
           char.rightShin.rotation = 0.25;
           break;
 
         case 'pulled':
           // REFERENSI: Orang tarik tambang kalah — terseret ke depan
-          char.torsoContainer.rotation = 0.45; // lean forward
+          char.torsoContainer.rotation = 0.40; // lean forward
           
-          char.leftArm.rotation = 1.3;
-          char.rightArm.rotation = 1.2;
-          char.leftForearm.rotation = 0.3;
-          char.rightForearm.rotation = 0.3;
+          char.leftArm.rotation = 1.30;
+          char.rightArm.rotation = 1.20;
+          char.leftForearm.rotation = 0.30;
+          char.rightForearm.rotation = 0.30;
           
-          char.leftLeg.rotation = -0.6;
-          char.leftShin.rotation = 0.5;
-          char.rightLeg.rotation = 0.5;
-          char.rightShin.rotation = -0.1;
+          char.leftLeg.rotation = -0.55;
+          char.leftShin.rotation = 0.45;
+          char.rightLeg.rotation = 0.50;
+          char.rightShin.rotation = -0.10;
           break;
 
         case 'idle':
           // Stance siap tarik
           char.torsoContainer.rotation = -0.40 + breathe;
           
-          char.leftArm.rotation = 1.5;
-          char.rightArm.rotation = 1.4;
-          char.leftForearm.rotation = 0.0;
-          char.rightForearm.rotation = 0.0;
+          char.leftArm.rotation = 1.55;
+          char.rightArm.rotation = 1.45;
+          char.leftForearm.rotation = -0.10;
+          char.rightForearm.rotation = -0.10;
           
-          char.leftLeg.rotation = 0.5;
-          char.leftShin.rotation = -0.4;
+          char.leftLeg.rotation = 0.50;
+          char.leftShin.rotation = -0.40;
           char.rightLeg.rotation = -0.45;
-          char.rightShin.rotation = 0.2;
+          char.rightShin.rotation = 0.20;
           break;
 
         case 'shocked':
@@ -369,7 +369,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ actionState, tugOfWarPos, side 
       const offset = tugOfWarPos * 4;
 
       // Rope Y position at waist height
-      const ROPE_WORLD_Y = 158;
+      const ROPE_WORLD_Y = 155;
 
       switch (actionState) {
         case 'P1_ATTACK':
@@ -452,8 +452,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ actionState, tugOfWarPos, side 
           break;
       }
 
-      const ropeX1 = p1.container.x + 58;
-      const ropeX2 = p2.container.x - 58;
+      const ropeX1 = p1.container.x + 55;
+      const ropeX2 = p2.container.x - 55;
       const sag = (actionState === 'PARRY') ? Math.sin(elapsed * 30) * 10 : 0;
       drawRope(ropeX1, ropeX2, ROPE_WORLD_Y, sag);
 
