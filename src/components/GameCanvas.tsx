@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Application, Sprite, Assets, Graphics, Container } from 'pixi.js';
 import { ActionState } from '../types';
 
@@ -9,43 +9,132 @@ interface GameCanvasProps {
   side: 'left' | 'right';
 }
 
-const createCharacter = (color: number, isRight: boolean) => {
+interface CharacterRig {
+  container: Container;
+  torsoContainer: Container;
+  head: Graphics;
+  leftArm: Container;
+  rightArm: Container;
+  leftForearm: Container;
+  rightForearm: Container;
+  leftLeg: Container;
+  rightLeg: Container;
+  leftShin: Container;
+  rightShin: Container;
+}
+
+const darkenColor = (color: number, amount: number) => {
+  const r = (color >> 16) & 0xff;
+  const g = (color >> 8) & 0xff;
+  const b = color & 0xff;
+  return (Math.floor(r * (1 - amount)) << 16) |
+         (Math.floor(g * (1 - amount)) << 8) |
+         Math.floor(b * (1 - amount));
+};
+
+const createCharacter = (mainColor: number, isRight: boolean): CharacterRig => {
   const container = new Container();
+  const dir = isRight ? -1 : 1;
+
+  const skinColor = 0xF5C5A3;
+  const skinHighlight = 0xFFDDC1;
+  const pantsColor = isRight ? 0x7F1D1D : 0x1E293B;
+  const shoeColor = 0x0F172A;
+  const darkMain = darkenColor(mainColor, 0.3);
+
+  // Legs
+  const createLeg = () => {
+    const legCont = new Container();
+    const thigh = new Graphics().roundRect(-8, 0, 16, 48, 8).fill({ color: pantsColor });
+    
+    const shinCont = new Container();
+    shinCont.y = 40;
+    const shin = new Graphics().roundRect(-6.5, 0, 13, 42, 6).fill({ color: skinColor });
+    const foot = new Graphics().ellipse(5, 40, 22, 12).fill({ color: shoeColor });
+    
+    shinCont.addChild(shin, foot);
+    legCont.addChild(thigh, shinCont);
+    return { legCont, shinCont };
+  };
+
+  const leftLegData = createLeg();
+  const rightLegData = createLeg();
   
-  const legBack = new Graphics().roundRect(-8, 0, 16, 50, 8).fill({ color: 0x555555 });
-  legBack.pivot.set(0, 5);
-  legBack.position.set(isRight ? 10 : -10, 10);
+  leftLegData.legCont.x = -15;
+  rightLegData.legCont.x = 15;
+  leftLegData.legCont.y = 60;
+  rightLegData.legCont.y = 60;
 
-  const legFront = new Graphics().roundRect(-8, 0, 16, 50, 8).fill({ color });
-  legFront.pivot.set(0, 5);
-  legFront.position.set(isRight ? -10 : 10, 10);
+  // Torso Container
+  const torsoContainer = new Container();
+  
+  const pelvis = new Graphics().rect(-22, 55, 44, 18).fill({ color: pantsColor });
+  
+  const torso = new Graphics();
+  // Main torso trapezoid
+  torso.poly([-30, 0, 30, 0, 22, 65, -22, 65]).fill({ color: mainColor });
+  // Shading
+  torso.poly([-30, 0, -22, 0, -16, 65, -22, 65]).fill({ color: darkMain });
+  
+  const neck = new Graphics().rect(-5, -10, 10, 15).fill({ color: skinColor });
+  
+  const head = new Container();
+  const headBase = new Graphics().ellipse(0, -35, 28, 32).fill({ color: skinColor });
+  const faceHighlight = new Graphics().circle(-12, -45, 8).fill({ color: skinHighlight, alpha: 0.4 });
+  const leftEye = new Graphics().circle(-10 * dir, -40, 3).fill({ color: 0x000000 });
+  const rightEye = new Graphics().circle(10 * dir, -40, 3).fill({ color: 0x000000 });
+  head.addChild(headBase, faceHighlight, leftEye, rightEye);
 
-  const body = new Graphics().roundRect(-15, -50, 30, 60, 10).fill({ color });
-  body.pivot.set(0, 10);
-  body.position.set(0, 0);
+  // Arms
+  const createArm = (isBack: boolean) => {
+    const armCont = new Container();
+    const color = isBack ? darkMain : mainColor;
+    const upperArm = new Graphics().roundRect(-6, 0, 12, 45, 6).fill({ color });
+    
+    const forearmCont = new Container();
+    forearmCont.y = 40;
+    const forearm = new Graphics().roundRect(-5, 0, 10, 38, 5).fill({ color: skinColor });
+    const hand = new Graphics().ellipse(0, 35, 12, 10).fill({ color: skinColor });
+    
+    forearmCont.addChild(forearm, hand);
+    armCont.addChild(upperArm, forearmCont);
+    return { armCont, forearmCont };
+  };
 
-  const head = new Graphics().circle(0, -70, 22).fill({ color });
+  const leftArmData = createArm(true);
+  const rightArmData = createArm(false);
+  
+  leftArmData.armCont.position.set(-30, 5);
+  rightArmData.armCont.position.set(30, 5);
 
-  const armBack = new Graphics().roundRect(-6, 0, 12, 45, 6).fill({ color: 0x555555 });
-  armBack.pivot.set(0, 5);
-  armBack.position.set(isRight ? 15 : -15, -40);
+  torsoContainer.addChild(neck, head, torso, pelvis, leftArmData.armCont, rightArmData.armCont);
+  
+  container.addChild(leftLegData.legCont, rightLegData.legCont, torsoContainer);
 
-  const armFront = new Graphics().roundRect(-6, 0, 12, 45, 6).fill({ color });
-  armFront.pivot.set(0, 5);
-  armFront.position.set(isRight ? -15 : 15, -40);
-
-  container.addChild(legBack, armBack, body, head, legFront, armFront);
-
-  return { container, head, body, armFront, armBack, legFront, legBack };
+  return {
+    container,
+    torsoContainer,
+    head: headBase,
+    leftArm: leftArmData.armCont,
+    rightArm: rightArmData.armCont,
+    leftForearm: leftArmData.forearmCont,
+    rightForearm: rightArmData.forearmCont,
+    leftLeg: leftLegData.legCont,
+    rightLeg: rightLegData.legCont,
+    leftShin: leftLegData.shinCont,
+    rightShin: rightLegData.shinCont
+  };
 };
 
 const GameCanvas: React.FC<GameCanvasProps> = ({ actionState, tugOfWarPos, side }) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
-  const p1Ref = useRef<any>(null);
-  const p2Ref = useRef<any>(null);
+  const p1Ref = useRef<CharacterRig | null>(null);
+  const p2Ref = useRef<CharacterRig | null>(null);
   const ropeRef = useRef<Graphics | null>(null);
   const fxRef = useRef<Graphics | null>(null);
+  const animationIdRef = useRef<number | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -102,16 +191,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ actionState, tugOfWarPos, side 
         app.stage.addChild(floor);
 
         // P1 Character
-        const p1 = createCharacter(0x3b82f6, false); // Blue
+        const p1 = createCharacter(0x2563EB, false); // Blue
         p1.container.x = 150;
-        p1.container.y = 300;
+        p1.container.y = 170;
         app.stage.addChild(p1.container);
         p1Ref.current = p1;
 
         // P2 Character
-        const p2 = createCharacter(0xef4444, true); // Red
+        const p2 = createCharacter(0xDC2626, true); // Red
         p2.container.x = 650;
-        p2.container.y = 300;
+        p2.container.y = 170;
         app.stage.addChild(p2.container);
         p2Ref.current = p2;
 
@@ -124,6 +213,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ actionState, tugOfWarPos, side 
         const fx = new Graphics();
         app.stage.addChild(fx);
         fxRef.current = fx;
+
+        setIsInitialized(true);
       } catch (err) {
         console.error("PixiJS Init Error:", err);
       }
@@ -141,23 +232,22 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ actionState, tugOfWarPos, side 
   }, []);
 
   useEffect(() => {
-    if (!p1Ref.current || !p2Ref.current || !fxRef.current || !appRef.current || !ropeRef.current) return;
+    if (!isInitialized || !p1Ref.current || !p2Ref.current || !fxRef.current || !appRef.current || !ropeRef.current) return;
 
     const p1 = p1Ref.current;
     const p2 = p2Ref.current;
     const fx = fxRef.current;
     const rope = ropeRef.current;
-    const app = appRef.current;
 
     // Base positions
     const baseP1X = 150;
     const baseP2X = 650;
     const offset = tugOfWarPos * 4;
 
-    const targetP1X = baseP1X + offset;
-    const targetP2X = baseP2X + offset;
+    // Clamp positions
+    const targetP1X = Math.max(100, Math.min(700, baseP1X + offset));
+    const targetP2X = Math.max(100, Math.min(700, baseP2X + offset));
 
-    let animationId: number | null = null;
     const startTime = Date.now();
 
     const drawRope = (x1: number, x2: number, y: number, sag: number = 0) => {
@@ -175,28 +265,68 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ actionState, tugOfWarPos, side 
       rope.circle(midX, y + sag/2, 10).fill({ color: 0xff0000 });
     };
 
-    const setStance = (p: any, isRight: boolean, pullAmount: number, isShocked: boolean = false) => {
+    const setStance = (char: CharacterRig, action: ActionState, isRight: boolean, pullStrength: number) => {
       const dir = isRight ? -1 : 1;
       
-      if (isShocked) {
-        p.container.rotation = Math.sin(Date.now() / 20) * 0.1;
-        p.armFront.rotation = Math.PI;
-        p.armBack.rotation = Math.PI;
-        p.legFront.rotation = 0;
-        p.legBack.rotation = 0;
+      // Reset rotations
+      char.container.rotation = 0;
+      char.torsoContainer.rotation = 0;
+      char.leftArm.rotation = 0;
+      char.rightArm.rotation = 0;
+      char.leftForearm.rotation = 0;
+      char.rightForearm.rotation = 0;
+      char.leftLeg.rotation = 0;
+      char.rightLeg.rotation = 0;
+      char.leftShin.rotation = 0;
+      char.rightShin.rotation = 0;
+
+      if (action === 'ENVIRONMENT_PUNISHMENT') {
+        char.container.rotation = Math.sin(Date.now() / 20) * 0.1;
+        char.leftArm.rotation = -Math.PI * 0.8 * dir;
+        char.rightArm.rotation = -Math.PI * 0.8 * dir;
         return;
       }
 
-      // Lean back
-      p.container.rotation = -0.2 * dir - (pullAmount * 0.2 * dir);
-      
-      // Arms forward to hold rope
-      p.armFront.rotation = 1.2 * dir + (pullAmount * 0.3 * dir);
-      p.armBack.rotation = 1.3 * dir + (pullAmount * 0.3 * dir);
-      
-      // Legs planted
-      p.legFront.rotation = 0.3 * dir + (pullAmount * 0.2 * dir);
-      p.legBack.rotation = -0.4 * dir - (pullAmount * 0.2 * dir);
+      if (action === 'P1_ATTACK' || action === 'P2_ATTACK' || action === 'IDLE' || action === 'PARRY') {
+        const isPulling = (action === 'P1_ATTACK' && !isRight) || (action === 'P2_ATTACK' && isRight);
+        const isBeingPulled = (action === 'P1_ATTACK' && isRight) || (action === 'P2_ATTACK' && !isRight);
+
+        if (isPulling) {
+          // Lean back
+          char.torsoContainer.rotation = -0.3 * dir - (pullStrength * 0.2 * dir);
+          
+          // Arms forward
+          char.leftArm.rotation = 1.2 * dir;
+          char.leftForearm.rotation = 0.5 * dir;
+          char.rightArm.rotation = 1.4 * dir;
+          char.rightForearm.rotation = 0.4 * dir;
+          
+          // Legs spread
+          char.leftLeg.rotation = 0.5 * dir;
+          char.leftShin.rotation = -0.3 * dir;
+          char.rightLeg.rotation = -0.4 * dir;
+          char.rightShin.rotation = 0.2 * dir;
+        } else if (isBeingPulled) {
+          // Lean forward
+          char.torsoContainer.rotation = 0.2 * dir;
+          char.leftArm.rotation = 1.0 * dir;
+          char.rightArm.rotation = 1.1 * dir;
+          
+          // Struggling legs
+          char.leftLeg.rotation = -0.2 * dir;
+          char.rightLeg.rotation = 0.1 * dir;
+        } else {
+          // Idle breathing
+          const breathe = Math.sin(Date.now() / 500) * 0.05;
+          char.torsoContainer.y = breathe * 5;
+          char.leftArm.rotation = 0.2 * dir + breathe;
+          char.rightArm.rotation = 0.2 * dir - breathe;
+          
+          // Hold rope
+          char.leftArm.rotation = 1.1 * dir;
+          char.rightArm.rotation = 1.2 * dir;
+        }
+      }
     };
 
     const animate = () => {
@@ -205,7 +335,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ actionState, tugOfWarPos, side 
       
       let p1Pull = 0;
       let p2Pull = 0;
-      let isShocked = false;
 
       const pullStrength = 20;
       const pullFreq = 15;
@@ -217,11 +346,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ actionState, tugOfWarPos, side 
             p1Pull = Math.max(0, pull);
             p1.container.x = targetP1X - p1Pull * pullStrength;
             p2.container.x = targetP2X - p1Pull * pullStrength - 10;
-            drawRope(p1.container.x + 30, p2.container.x - 30, 260, p1Pull * 5);
+            drawRope(p1.container.x + 30, p2.container.x - 30, 250, p1Pull * 5);
           } else {
             p1.container.x = targetP1X;
             p2.container.x = targetP2X;
-            drawRope(p1.container.x + 30, p2.container.x - 30, 260);
+            drawRope(p1.container.x + 30, p2.container.x - 30, 250);
           }
           break;
 
@@ -231,11 +360,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ actionState, tugOfWarPos, side 
             p2Pull = Math.max(0, pull);
             p2.container.x = targetP2X + p2Pull * pullStrength;
             p1.container.x = targetP1X + p2Pull * pullStrength + 10;
-            drawRope(p1.container.x + 30, p2.container.x - 30, 260, p2Pull * 5);
+            drawRope(p1.container.x + 30, p2.container.x - 30, 250, p2Pull * 5);
           } else {
             p1.container.x = targetP1X;
             p2.container.x = targetP2X;
-            drawRope(p1.container.x + 30, p2.container.x - 30, 260);
+            drawRope(p1.container.x + 30, p2.container.x - 30, 250);
           }
           break;
 
@@ -246,21 +375,20 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ actionState, tugOfWarPos, side 
             p2.container.x = targetP2X - shake;
             p1Pull = 0.5;
             p2Pull = 0.5;
-            drawRope(p1.container.x + 30, p2.container.x - 30, 260, Math.sin(elapsed * 30) * 10);
+            drawRope(p1.container.x + 30, p2.container.x - 30, 250, Math.sin(elapsed * 30) * 10);
             
             fx.clear();
-            fx.circle(400 + offset, 260, 30 + Math.random()*20).fill({ color: 0xffffff, alpha: 0.3 });
+            fx.circle(400 + offset, 250, 30 + Math.random()*20).fill({ color: 0xffffff, alpha: 0.3 });
           } else {
             p1.container.x = targetP1X;
             p2.container.x = targetP2X;
-            drawRope(p1.container.x + 30, p2.container.x - 30, 260);
+            drawRope(p1.container.x + 30, p2.container.x - 30, 250);
             fx.clear();
           }
           break;
 
         case 'ENVIRONMENT_PUNISHMENT':
           if (elapsed < 1.2) {
-            isShocked = true;
             const shake = Math.sin(elapsed * 80) * 5;
             p1.container.x = targetP1X + shake;
             p2.container.x = targetP2X + shake;
@@ -283,11 +411,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ actionState, tugOfWarPos, side 
               fx.stroke({ color: 0xffffff, width: 2 });
               fx.stroke({ color: 0x00ffff, width: 6, alpha: 0.3 });
             }
-            drawRope(p1.container.x + 30, p2.container.x - 30, 260, 20);
+            drawRope(p1.container.x + 30, p2.container.x - 30, 250, 20);
           } else {
             p1.container.x = targetP1X;
             p2.container.x = targetP2X;
-            drawRope(p1.container.x + 30, p2.container.x - 30, 260);
+            drawRope(p1.container.x + 30, p2.container.x - 30, 250);
             fx.clear();
           }
           break;
@@ -295,23 +423,23 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ actionState, tugOfWarPos, side 
         default:
           p1.container.x = targetP1X;
           p2.container.x = targetP2X;
-          drawRope(p1.container.x + 30, p2.container.x - 30, 260);
+          drawRope(p1.container.x + 30, p2.container.x - 30, 250);
           fx.clear();
           break;
       }
 
-      setStance(p1, false, p1Pull, isShocked);
-      setStance(p2, true, p2Pull, isShocked);
+      setStance(p1, actionState, false, p1Pull);
+      setStance(p2, actionState, true, p2Pull);
 
-      animationId = requestAnimationFrame(animate);
+      animationIdRef.current = requestAnimationFrame(animate);
     };
 
-    animationId = requestAnimationFrame(animate);
+    animationIdRef.current = requestAnimationFrame(animate);
 
     return () => {
-      if (animationId) cancelAnimationFrame(animationId);
+      if (animationIdRef.current) cancelAnimationFrame(animationIdRef.current);
     };
-  }, [actionState, tugOfWarPos]);
+  }, [actionState, tugOfWarPos, isInitialized]);
 
   return (
     <div ref={canvasRef} className="w-full h-full" />

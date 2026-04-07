@@ -1,4 +1,5 @@
 
+/// <reference types="vite/client" />
 import React, { useEffect, useState, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { 
@@ -35,7 +36,11 @@ export default function App() {
   const [p2Nickname, setP2Nickname] = useState('');
 
   useEffect(() => {
-    const newSocket: Socket<ServerToClientEvents, ClientToServerEvents> = io();
+    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || window.location.origin;
+    const newSocket: Socket<ServerToClientEvents, ClientToServerEvents> = io(SOCKET_URL, {
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 5,
+    });
     setSocket(newSocket);
 
     // Check for room in URL
@@ -44,6 +49,19 @@ export default function App() {
     if (roomFromUrl) {
       setRoomCode(roomFromUrl);
     }
+
+    newSocket.on('connect_error', (err) => {
+      console.error('Connection error:', err.message);
+      setGameState('IDLE');
+    });
+
+    newSocket.on('disconnect', (reason) => {
+      console.log('Disconnected:', reason);
+      if (reason === 'io server disconnect') {
+        newSocket.connect();
+      }
+      setGameState('IDLE');
+    });
 
     newSocket.on('waiting_for_opponent', () => {
       setGameState('MATCHMAKING');
@@ -173,6 +191,18 @@ export default function App() {
     if (socket && roomId) {
       socket.emit('client_submit_answer', { roomId, answer });
     }
+  };
+
+  const handlePlayAgain = () => {
+    setGameState('IDLE');
+    setTugOfWarPos(0);
+    setActionState('IDLE');
+    setCurrentQuestion(null);
+    setLastResult(null);
+    setWinner(null);
+    setRoomId(null);
+    setRoomCode('');
+    setPlayers([]);
   };
 
   return (
@@ -427,7 +457,7 @@ export default function App() {
               <p className="text-gray-500 italic">Alasan: {winner?.reason}</p>
             </div>
             <button 
-              onClick={() => setGameState('IDLE')}
+              onClick={handlePlayAgain}
               className="px-10 py-4 bg-white text-black font-black rounded-full uppercase tracking-widest hover:bg-gray-200 transition-all active:scale-95"
             >
               Kembali ke Menu

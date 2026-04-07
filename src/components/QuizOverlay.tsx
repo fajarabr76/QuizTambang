@@ -38,9 +38,17 @@ const QuizOverlay: React.FC<QuizOverlayProps> = ({
   children
 }) => {
   const [selected, setSelected] = React.useState<string | null>(null);
+  const [timeLeft, setTimeLeft] = React.useState<number>(0);
 
   React.useEffect(() => {
     setSelected(null);
+    if (question) {
+      setTimeLeft(question.localTimeLimit);
+      const timer = setInterval(() => {
+        setTimeLeft(prev => Math.max(0, prev - 1));
+      }, 1000);
+      return () => clearInterval(timer);
+    }
   }, [question]);
 
   const handleSelect = (ans: string) => {
@@ -163,7 +171,13 @@ const QuizOverlay: React.FC<QuizOverlayProps> = ({
               exit={{ y: -20, opacity: 0 }}
               className="bg-black/80 p-6 rounded-3xl border-2 border-white/10 backdrop-blur-xl shadow-2xl"
             >
-              <div className="mb-6 text-center">
+              <div className="mb-6 text-center relative">
+                <div className="absolute right-0 top-0 flex items-center space-x-2 bg-blue-500/20 px-3 py-1 rounded-full border border-blue-500/30">
+                  <Timer size={14} className="text-blue-400" />
+                  <span className={`text-sm font-bold font-mono ${timeLeft <= 3 ? 'text-red-400 animate-pulse' : 'text-blue-400'}`}>
+                    {timeLeft}s
+                  </span>
+                </div>
                 <span className="text-xs font-bold text-blue-400 uppercase tracking-[0.3em] mb-2 block">Pertanyaan Baru</span>
                 <h3 className="text-2xl font-bold text-white leading-tight">{question.text}</h3>
               </div>
