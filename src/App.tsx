@@ -36,8 +36,7 @@ export default function App() {
   const [p2Nickname, setP2Nickname] = useState('');
 
   useEffect(() => {
-    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || window.location.origin;
-    const newSocket: Socket<ServerToClientEvents, ClientToServerEvents> = io(SOCKET_URL, {
+    const newSocket: Socket<ServerToClientEvents, ClientToServerEvents> = io({
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 5,
     });
