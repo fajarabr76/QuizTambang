@@ -34,11 +34,11 @@ const darkenColor = (color: number, amount: number) => {
 
 const createCharacter = (mainColor: number, isRight: boolean): CharacterRig => {
   const container = new Container();
-  // Flip P2 to face left
+  // P2 faces left (mirror)
   if (isRight) {
     container.scale.x = -1;
   }
-  const dir = 1; // Always face "forward" in local space
+  const dir = 1; // In local space, forward is always positive X
 
   const skinColor = 0xF5C5A3;
   const skinHighlight = 0xFFDDC1;
@@ -49,10 +49,14 @@ const createCharacter = (mainColor: number, isRight: boolean): CharacterRig => {
   // Legs
   const createLeg = () => {
     const legCont = new Container();
+    // Pivot at hip
+    legCont.pivot.set(0, 0);
     const thigh = new Graphics().roundRect(-8, 0, 16, 48, 8).fill({ color: pantsColor });
     
     const shinCont = new Container();
+    // Pivot at knee
     shinCont.y = 40;
+    shinCont.pivot.set(0, 0);
     const shin = new Graphics().roundRect(-6.5, 0, 13, 42, 6).fill({ color: skinColor });
     const foot = new Graphics().ellipse(5, 40, 22, 12).fill({ color: shoeColor });
     
@@ -71,6 +75,9 @@ const createCharacter = (mainColor: number, isRight: boolean): CharacterRig => {
 
   // Torso Container
   const torsoContainer = new Container();
+  // Pivot at pelvis/hips for leaning
+  torsoContainer.pivot.set(0, 65);
+  torsoContainer.y = 65;
   
   const pelvis = new Graphics().rect(-22, 55, 44, 18).fill({ color: pantsColor });
   
@@ -92,11 +99,15 @@ const createCharacter = (mainColor: number, isRight: boolean): CharacterRig => {
   // Arms
   const createArm = (isBack: boolean) => {
     const armCont = new Container();
+    // Pivot at shoulder
+    armCont.pivot.set(0, 0);
     const color = isBack ? darkMain : mainColor;
     const upperArm = new Graphics().roundRect(-6, 0, 12, 45, 6).fill({ color });
     
     const forearmCont = new Container();
+    // Pivot at elbow
     forearmCont.y = 40;
+    forearmCont.pivot.set(0, 0);
     const forearm = new Graphics().roundRect(-5, 0, 10, 38, 5).fill({ color: skinColor });
     const hand = new Graphics().ellipse(0, 35, 12, 10).fill({ color: skinColor });
     
@@ -197,14 +208,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ actionState, tugOfWarPos, side 
         // P1 Character
         const p1 = createCharacter(0x2563EB, false); // Blue
         p1.container.x = 150;
-        p1.container.y = 220;
+        p1.container.y = 230;
         app.stage.addChild(p1.container);
         p1Ref.current = p1;
 
         // P2 Character
         const p2 = createCharacter(0xDC2626, true); // Red
         p2.container.x = 650;
-        p2.container.y = 220;
+        p2.container.y = 230;
         app.stage.addChild(p2.container);
         p2Ref.current = p2;
 
@@ -269,7 +280,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ actionState, tugOfWarPos, side 
       rope.circle(midX, y + sag/2, 10).fill({ color: 0xff0000 });
     };
 
-    const setStance = (char: CharacterRig, action: ActionState, isRight: boolean, pullStrength: number) => {
+    const setTugStance = (
+      char: CharacterRig,
+      mode: 'pulling' | 'pulled' | 'idle' | 'shocked',
+      elapsed: number
+    ) => {
       // Reset rotations
       char.container.rotation = 0;
       char.torsoContainer.rotation = 0;
@@ -282,51 +297,68 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ actionState, tugOfWarPos, side 
       char.leftShin.rotation = 0;
       char.rightShin.rotation = 0;
 
-      if (action === 'ENVIRONMENT_PUNISHMENT') {
-        char.container.rotation = Math.sin(Date.now() / 20) * 0.1;
-        char.leftArm.rotation = -Math.PI * 0.8;
-        char.rightArm.rotation = -Math.PI * 0.8;
-        return;
-      }
+      const breathe = Math.sin(elapsed * 2.5) * 0.03;
 
-      const isPulling = (action === 'P1_ATTACK' && !isRight) || (action === 'P2_ATTACK' && isRight);
-      const isBeingPulled = (action === 'P1_ATTACK' && isRight) || (action === 'P2_ATTACK' && !isRight);
+      switch(mode) {
+        case 'pulling':
+          // REFERENSI: Orang tarik tambang menang — badan condong jauh ke belakang
+          char.torsoContainer.rotation = -0.75; // lean back ~43°
+          
+          // Kedua lengan LURUS ke depan-atas memegang tali
+          char.leftArm.rotation = 1.7;
+          char.rightArm.rotation = 1.6;
+          char.leftForearm.rotation = -0.2;
+          char.rightForearm.rotation = -0.2;
+          
+          // Kuda-kuda LEBAR, lutut ditekuk dalam
+          char.leftLeg.rotation = 0.7; // kaki depan
+          char.leftShin.rotation = -0.55;
+          char.rightLeg.rotation = -0.6; // kaki belakang
+          char.rightShin.rotation = 0.25;
+          break;
 
-      if (isPulling) {
-        // Dramatic lean back
-        char.torsoContainer.rotation = -0.6 - (pullStrength * 0.3);
-        
-        // Arms reaching forward to hold rope
-        char.leftArm.rotation = 1.4;
-        char.leftForearm.rotation = 0.2;
-        char.rightArm.rotation = 1.5;
-        char.rightForearm.rotation = 0.1;
-        
-        // Strong leg stance (kuda-kuda)
-        char.leftLeg.rotation = 0.8; // Front leg
-        char.leftShin.rotation = -0.4;
-        char.rightLeg.rotation = -0.6; // Back leg
-        char.rightShin.rotation = 0.3;
-      } else if (isBeingPulled) {
-        // Lean forward (struggling)
-        char.torsoContainer.rotation = 0.3;
-        
-        char.leftArm.rotation = 1.1;
-        char.rightArm.rotation = 1.2;
-        
-        char.leftLeg.rotation = -0.3;
-        char.rightLeg.rotation = 0.2;
-      } else {
-        // Idle / Default Tug Stance
-        const breathe = Math.sin(Date.now() / 500) * 0.05;
-        char.torsoContainer.rotation = -0.3 + breathe;
-        
-        // Hold rope at waist height
-        char.leftArm.rotation = 1.3;
-        char.rightArm.rotation = 1.4;
-        
-        char.leftLeg.rotation = 0.4;
-        char.rightLeg.rotation = -0.3;
+        case 'pulled':
+          // REFERENSI: Orang tarik tambang kalah — terseret ke depan
+          char.torsoContainer.rotation = 0.45; // lean forward
+          
+          char.leftArm.rotation = 1.3;
+          char.rightArm.rotation = 1.2;
+          char.leftForearm.rotation = 0.3;
+          char.rightForearm.rotation = 0.3;
+          
+          char.leftLeg.rotation = -0.6;
+          char.leftShin.rotation = 0.5;
+          char.rightLeg.rotation = 0.5;
+          char.rightShin.rotation = -0.1;
+          break;
+
+        case 'idle':
+          // Stance siap tarik
+          char.torsoContainer.rotation = -0.40 + breathe;
+          
+          char.leftArm.rotation = 1.5;
+          char.rightArm.rotation = 1.4;
+          char.leftForearm.rotation = 0.0;
+          char.rightForearm.rotation = 0.0;
+          
+          char.leftLeg.rotation = 0.5;
+          char.leftShin.rotation = -0.4;
+          char.rightLeg.rotation = -0.45;
+          char.rightShin.rotation = 0.2;
+          break;
+
+        case 'shocked':
+          char.container.rotation = Math.sin(elapsed * 90) * 0.12;
+          char.torsoContainer.rotation = -0.2 + Math.sin(elapsed * 70) * 0.15;
+          
+          char.leftArm.rotation = -1.8;
+          char.rightArm.rotation = -2.0;
+          char.leftForearm.rotation = 1.2;
+          char.rightForearm.rotation = 0.9;
+          
+          char.leftLeg.rotation = -0.3;
+          char.rightLeg.rotation = 0.3;
+          break;
       }
     };
 
@@ -334,64 +366,54 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ actionState, tugOfWarPos, side 
       const now = Date.now();
       const elapsed = (now - startTime) / 1000; // seconds
       
-      let p1Pull = 0;
-      let p2Pull = 0;
-
-      const pullStrength = 20;
-      const pullFreq = 15;
+      const offset = tugOfWarPos * 4;
 
       // Rope Y position at waist height
-      const ropeY = 250;
+      const ROPE_WORLD_Y = 158;
 
       switch (actionState) {
         case 'P1_ATTACK':
+          setTugStance(p1, 'pulling', elapsed);
+          setTugStance(p2, 'pulled', elapsed);
           if (elapsed < 0.8) {
-            const pull = Math.sin(elapsed * pullFreq);
-            p1Pull = Math.max(0, pull);
-            p1.container.x = targetP1X - p1Pull * pullStrength;
-            p2.container.x = targetP2X - p1Pull * pullStrength - 10;
-            drawRope(p1.container.x + 40, p2.container.x - 40, ropeY, p1Pull * 5);
+            const pull = Math.sin(elapsed * 15);
+            p1.container.x = targetP1X - Math.max(0, pull) * 20;
+            p2.container.x = targetP2X - Math.max(0, pull) * 20 - 10;
           } else {
             p1.container.x = targetP1X;
             p2.container.x = targetP2X;
-            drawRope(p1.container.x + 40, p2.container.x - 40, ropeY);
           }
           break;
-
         case 'P2_ATTACK':
+          setTugStance(p1, 'pulled', elapsed);
+          setTugStance(p2, 'pulling', elapsed);
           if (elapsed < 0.8) {
-            const pull = Math.sin(elapsed * pullFreq);
-            p2Pull = Math.max(0, pull);
-            p2.container.x = targetP2X + p2Pull * pullStrength;
-            p1.container.x = targetP1X + p2Pull * pullStrength + 10;
-            drawRope(p1.container.x + 40, p2.container.x - 40, ropeY, p2Pull * 5);
+            const pull = Math.sin(elapsed * 15);
+            p2.container.x = targetP2X + Math.max(0, pull) * 20;
+            p1.container.x = targetP1X + Math.max(0, pull) * 20 + 10;
           } else {
             p1.container.x = targetP1X;
             p2.container.x = targetP2X;
-            drawRope(p1.container.x + 40, p2.container.x - 40, ropeY);
           }
           break;
-
         case 'PARRY':
+          setTugStance(p1, 'pulling', elapsed);
+          setTugStance(p2, 'pulling', elapsed);
           if (elapsed < 0.8) {
             const shake = Math.sin(elapsed * 50) * 5;
             p1.container.x = targetP1X + shake;
             p2.container.x = targetP2X - shake;
-            p1Pull = 0.5;
-            p2Pull = 0.5;
-            drawRope(p1.container.x + 40, p2.container.x - 40, ropeY, Math.sin(elapsed * 30) * 10);
-            
             fx.clear();
-            fx.circle(400 + offset, ropeY, 30 + Math.random()*20).fill({ color: 0xffffff, alpha: 0.3 });
+            fx.circle(400 + offset, ROPE_WORLD_Y, 30 + Math.random()*20).fill({ color: 0xffffff, alpha: 0.3 });
           } else {
             p1.container.x = targetP1X;
             p2.container.x = targetP2X;
-            drawRope(p1.container.x + 40, p2.container.x - 40, ropeY);
             fx.clear();
           }
           break;
-
         case 'ENVIRONMENT_PUNISHMENT':
+          setTugStance(p1, 'shocked', elapsed);
+          setTugStance(p2, 'shocked', elapsed);
           if (elapsed < 1.2) {
             const shake = Math.sin(elapsed * 80) * 5;
             p1.container.x = targetP1X + shake;
@@ -415,25 +437,25 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ actionState, tugOfWarPos, side 
               fx.stroke({ color: 0xffffff, width: 2 });
               fx.stroke({ color: 0x00ffff, width: 6, alpha: 0.3 });
             }
-            drawRope(p1.container.x + 40, p2.container.x - 40, ropeY, 20);
           } else {
             p1.container.x = targetP1X;
             p2.container.x = targetP2X;
-            drawRope(p1.container.x + 40, p2.container.x - 40, ropeY);
             fx.clear();
           }
           break;
-
         default:
+          setTugStance(p1, 'idle', elapsed);
+          setTugStance(p2, 'idle', elapsed);
           p1.container.x = targetP1X;
           p2.container.x = targetP2X;
-          drawRope(p1.container.x + 40, p2.container.x - 40, ropeY);
           fx.clear();
           break;
       }
 
-      setStance(p1, actionState, false, p1Pull);
-      setStance(p2, actionState, true, p2Pull);
+      const ropeX1 = p1.container.x + 58;
+      const ropeX2 = p2.container.x - 58;
+      const sag = (actionState === 'PARRY') ? Math.sin(elapsed * 30) * 10 : 0;
+      drawRope(ropeX1, ropeX2, ROPE_WORLD_Y, sag);
 
       animationIdRef.current = requestAnimationFrame(animate);
     };
