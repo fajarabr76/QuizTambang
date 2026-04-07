@@ -208,14 +208,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ actionState, tugOfWarPos, side 
         // P1 Character
         const p1 = createCharacter(0x2563EB, false); // Blue
         p1.container.x = 150;
-        p1.container.y = 230;
+        p1.container.y = 180;
         app.stage.addChild(p1.container);
         p1Ref.current = p1;
 
         // P2 Character
         const p2 = createCharacter(0xDC2626, true); // Red
         p2.container.x = 650;
-        p2.container.y = 230;
+        p2.container.y = 180;
         app.stage.addChild(p2.container);
         p2Ref.current = p2;
 
@@ -301,61 +301,48 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ actionState, tugOfWarPos, side 
 
       switch(mode) {
         case 'pulling':
-          // REFERENSI: Orang tarik tambang menang — badan condong jauh ke belakang
-          char.torsoContainer.rotation = -0.70; // lean back ~40°
-          
-          // Kedua lengan LURUS ke depan-atas memegang tali
-          char.leftArm.rotation = 1.70;
-          char.rightArm.rotation = 1.60;
-          char.leftForearm.rotation = -0.20;
-          char.rightForearm.rotation = -0.20;
-          
-          // Kuda-kuda LEBAR, lutut ditekuk dalam
-          char.leftLeg.rotation = 0.70; // kaki depan
-          char.leftShin.rotation = -0.55;
-          char.rightLeg.rotation = -0.60; // kaki belakang
-          char.rightShin.rotation = 0.25;
+          char.torsoContainer.rotation = -0.65;
+          char.leftArm.rotation  = -1.65;
+          char.leftForearm.rotation  = 0.15;
+          char.rightArm.rotation = -1.55;
+          char.rightForearm.rotation = 0.1;
+          char.leftLeg.rotation  = -0.65;
+          char.leftShin.rotation =  0.50;
+          char.rightLeg.rotation =  0.55;
+          char.rightShin.rotation = -0.25;
           break;
 
         case 'pulled':
-          // REFERENSI: Orang tarik tambang kalah — terseret ke depan
-          char.torsoContainer.rotation = 0.40; // lean forward
-          
-          char.leftArm.rotation = 1.30;
-          char.rightArm.rotation = 1.20;
-          char.leftForearm.rotation = 0.30;
-          char.rightForearm.rotation = 0.30;
-          
-          char.leftLeg.rotation = -0.55;
-          char.leftShin.rotation = 0.45;
-          char.rightLeg.rotation = 0.50;
-          char.rightShin.rotation = -0.10;
+          char.torsoContainer.rotation =  0.40;
+          char.leftArm.rotation  = -1.25;
+          char.leftForearm.rotation = -0.25;
+          char.rightArm.rotation = -1.15;
+          char.rightForearm.rotation = -0.20;
+          char.leftLeg.rotation  =  0.55;
+          char.leftShin.rotation = -0.45;
+          char.rightLeg.rotation = -0.50;
+          char.rightShin.rotation =  0.1;
           break;
 
         case 'idle':
-          // Stance siap tarik
-          char.torsoContainer.rotation = -0.40 + breathe;
-          
-          char.leftArm.rotation = 1.55;
-          char.rightArm.rotation = 1.45;
-          char.leftForearm.rotation = -0.10;
-          char.rightForearm.rotation = -0.10;
-          
-          char.leftLeg.rotation = 0.50;
-          char.leftShin.rotation = -0.40;
-          char.rightLeg.rotation = -0.45;
-          char.rightShin.rotation = 0.20;
+          char.torsoContainer.rotation = -0.35 + breathe;
+          char.leftArm.rotation  = -1.45;
+          char.leftForearm.rotation = -0.05;
+          char.rightArm.rotation = -1.35;
+          char.rightForearm.rotation = 0.0;
+          char.leftLeg.rotation  = -0.45;
+          char.leftShin.rotation =  0.35;
+          char.rightLeg.rotation =  0.40;
+          char.rightShin.rotation = -0.18;
           break;
 
         case 'shocked':
           char.container.rotation = Math.sin(elapsed * 90) * 0.12;
           char.torsoContainer.rotation = -0.2 + Math.sin(elapsed * 70) * 0.15;
-          
           char.leftArm.rotation = -1.8;
           char.rightArm.rotation = -2.0;
           char.leftForearm.rotation = 1.2;
           char.rightForearm.rotation = 0.9;
-          
           char.leftLeg.rotation = -0.3;
           char.rightLeg.rotation = 0.3;
           break;
@@ -369,55 +356,50 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ actionState, tugOfWarPos, side 
       const offset = tugOfWarPos * 4;
 
       // Rope Y position at waist height
-      const ROPE_WORLD_Y = 155;
+      const ROPE_Y = 196;
 
       switch (actionState) {
-        case 'P1_ATTACK':
+        case 'P1_ATTACK': {
           setTugStance(p1, 'pulling', elapsed);
           setTugStance(p2, 'pulled', elapsed);
-          if (elapsed < 0.8) {
-            const pull = Math.sin(elapsed * 15);
-            p1.container.x = targetP1X - Math.max(0, pull) * 20;
-            p2.container.x = targetP2X - Math.max(0, pull) * 20 - 10;
-          } else {
-            p1.container.x = targetP1X;
-            p2.container.x = targetP2X;
-          }
+          const burst = elapsed < 0.8 ? Math.max(0, Math.sin(elapsed * 14)) * (1 - elapsed * 1.2) : 0;
+          p1.container.x = targetP1X - burst * 15;
+          p2.container.x = targetP2X - burst * 10;
+          drawRope(p1.container.x + 54, p2.container.x - 54, ROPE_Y, 6 + burst * 12);
           break;
-        case 'P2_ATTACK':
+        }
+        case 'P2_ATTACK': {
           setTugStance(p1, 'pulled', elapsed);
           setTugStance(p2, 'pulling', elapsed);
-          if (elapsed < 0.8) {
-            const pull = Math.sin(elapsed * 15);
-            p2.container.x = targetP2X + Math.max(0, pull) * 20;
-            p1.container.x = targetP1X + Math.max(0, pull) * 20 + 10;
-          } else {
-            p1.container.x = targetP1X;
-            p2.container.x = targetP2X;
-          }
+          const burst = elapsed < 0.8 ? Math.max(0, Math.sin(elapsed * 14)) * (1 - elapsed * 1.2) : 0;
+          p2.container.x = targetP2X + burst * 15;
+          p1.container.x = targetP1X + burst * 10;
+          drawRope(p1.container.x + 54, p2.container.x - 54, ROPE_Y, 6 + burst * 12);
           break;
-        case 'PARRY':
+        }
+        case 'PARRY': {
           setTugStance(p1, 'pulling', elapsed);
           setTugStance(p2, 'pulling', elapsed);
+          const shake = elapsed < 0.8 ? Math.sin(elapsed * 55) * 4 : 0;
+          p1.container.x = targetP1X + shake;
+          p2.container.x = targetP2X - shake;
+          drawRope(p1.container.x + 54, p2.container.x - 54, ROPE_Y, 4 + Math.abs(shake));
+          
+          fx.clear();
           if (elapsed < 0.8) {
-            const shake = Math.sin(elapsed * 50) * 5;
-            p1.container.x = targetP1X + shake;
-            p2.container.x = targetP2X - shake;
-            fx.clear();
-            fx.circle(400 + offset, ROPE_WORLD_Y, 30 + Math.random()*20).fill({ color: 0xffffff, alpha: 0.3 });
-          } else {
-            p1.container.x = targetP1X;
-            p2.container.x = targetP2X;
-            fx.clear();
+            fx.circle(400 + offset, ROPE_Y, 30 + Math.random()*20).fill({ color: 0xffffff, alpha: 0.3 });
           }
           break;
-        case 'ENVIRONMENT_PUNISHMENT':
+        }
+        case 'ENVIRONMENT_PUNISHMENT': {
           setTugStance(p1, 'shocked', elapsed);
           setTugStance(p2, 'shocked', elapsed);
+          drawRope(p1.container.x + 54, p2.container.x - 54, ROPE_Y, 22);
+          
           if (elapsed < 1.2) {
-            const shake = Math.sin(elapsed * 80) * 5;
-            p1.container.x = targetP1X + shake;
-            p2.container.x = targetP2X + shake;
+            const shakeEnv = Math.sin(elapsed * 80) * 5;
+            p1.container.x = targetP1X + shakeEnv;
+            p2.container.x = targetP2X + shakeEnv;
             
             fx.clear();
             for(let i=0; i<2; i++) {
@@ -443,19 +425,17 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ actionState, tugOfWarPos, side 
             fx.clear();
           }
           break;
-        default:
+        }
+        default: {
           setTugStance(p1, 'idle', elapsed);
           setTugStance(p2, 'idle', elapsed);
           p1.container.x = targetP1X;
           p2.container.x = targetP2X;
+          drawRope(p1.container.x + 54, p2.container.x - 54, ROPE_Y, 8);
           fx.clear();
           break;
+        }
       }
-
-      const ropeX1 = p1.container.x + 55;
-      const ropeX2 = p2.container.x - 55;
-      const sag = (actionState === 'PARRY') ? Math.sin(elapsed * 30) * 10 : 0;
-      drawRope(ropeX1, ropeX2, ROPE_WORLD_Y, sag);
 
       animationIdRef.current = requestAnimationFrame(animate);
     };

@@ -35,6 +35,9 @@ export interface GameState {
   tugOfWarPos: number; // -50 to 50, 0 is center. -50 means P1 wins, 50 means P2 wins.
   p1Answer: string | null;
   p2Answer: string | null;
+  p1CorrectCount: number;
+  p2CorrectCount: number;
+  usedQuestionIds: string[];
   currentQuestion: QuizQuestion | null;
   globalTimeRemaining: number;
   state: 'WAITING_ROOM' | 'INIT' | 'QUESTION_BROADCAST' | 'ANSWER_COLLECTION' | 'RESOLUTION' | 'GAME_OVER';

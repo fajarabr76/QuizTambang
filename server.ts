@@ -124,7 +124,11 @@ async function startServer() {
     return row?.config_value || 0;
   };
 
-  const getRandomQuestion = () => {
+  const getRandomQuestion = (usedIds: string[] = []) => {
+    if (usedIds.length > 0) {
+      const placeholders = usedIds.map(() => '?').join(',');
+      return db.prepare(`SELECT * FROM quiz_questions WHERE id NOT IN (${placeholders}) ORDER BY RANDOM() LIMIT 1`).get(...usedIds) as QuizQuestion | undefined;
+    }
     return db.prepare('SELECT * FROM quiz_questions ORDER BY RANDOM() LIMIT 1').get() as QuizQuestion;
   };
 
@@ -176,6 +180,9 @@ async function startServer() {
             tugOfWarPos: 0,
             p1Answer: null,
             p2Answer: null,
+            p1CorrectCount: 0,
+            p2CorrectCount: 0,
+            usedQuestionIds: [],
             currentQuestion: null,
             globalTimeRemaining: matchDuration,
             state: 'INIT', // Start immediately for global
@@ -212,6 +219,9 @@ async function startServer() {
             tugOfWarPos: 0,
             p1Answer: null,
             p2Answer: null,
+            p1CorrectCount: 0,
+            p2CorrectCount: 0,
+            usedQuestionIds: [],
             currentQuestion: null,
             globalTimeRemaining: matchDuration,
             state: 'WAITING_ROOM',
@@ -320,8 +330,18 @@ async function startServer() {
       const limit = getConfig('tug_of_war_limit');
       if (room.globalTimeRemaining <= 0 || Math.abs(room.tugOfWarPos) >= limit) {
         let winner = null;
-        if (room.tugOfWarPos <= -limit || (room.globalTimeRemaining <= 0 && room.tugOfWarPos < 0)) winner = room.p1;
-        else if (room.tugOfWarPos >= limit || (room.globalTimeRemaining <= 0 && room.tugOfWarPos > 0)) winner = room.p2;
+        if (room.tugOfWarPos <= -limit) winner = room.p1;
+        else if (room.tugOfWarPos >= limit) winner = room.p2;
+        else if (room.globalTimeRemaining <= 0) {
+          // Time's up: use position first, then correct counts as tie-breaker
+          if (room.tugOfWarPos < 0) winner = room.p1;
+          else if (room.tugOfWarPos > 0) winner = room.p2;
+          else {
+            // Perfect center: use correct counts
+            if (room.p1CorrectCount > room.p2CorrectCount) winner = room.p1;
+            else if (room.p2CorrectCount > room.p1CorrectCount) winner = room.p2;
+          }
+        }
         
         io.to(roomId).emit('game_over', { winner, reason: 'Game ended' });
         rooms.delete(roomId);
@@ -336,7 +356,26 @@ async function startServer() {
           break;
 
         case 'QUESTION_BROADCAST':
-          room.currentQuestion = getRandomQuestion();
+          const nextQuestion = getRandomQuestion(room.usedQuestionIds);
+          if (!nextQuestion) {
+            // No more questions! Determine winner by correct counts
+            let winner = null;
+            if (room.p1CorrectCount > room.p2CorrectCount) winner = room.p1;
+            else if (room.p2CorrectCount > room.p1CorrectCount) winner = room.p2;
+            else {
+              // If correct counts are equal, use position
+              if (room.tugOfWarPos < 0) winner = room.p1;
+              else if (room.tugOfWarPos > 0) winner = room.p2;
+            }
+            
+            io.to(roomId).emit('game_over', { winner, reason: 'Pertanyaan habis! Pemenang ditentukan dari jumlah jawaban benar.' });
+            rooms.delete(roomId);
+            clearInterval(interval);
+            return;
+          }
+
+          room.currentQuestion = nextQuestion;
+          room.usedQuestionIds.push(nextQuestion.id);
           room.p1Answer = null;
           room.p2Answer = null;
           room.state = 'ANSWER_COLLECTION';
@@ -379,6 +418,9 @@ async function startServer() {
     const correct = room.currentQuestion!.correct_option;
     const p1Correct = room.p1Answer === correct;
     const p2Correct = room.p2Answer === correct;
+
+    if (p1Correct) room.p1CorrectCount++;
+    if (p2Correct) room.p2CorrectCount++;
 
     let actionState: ActionState = 'IDLE';
     const step = getConfig('tug_of_war_step');

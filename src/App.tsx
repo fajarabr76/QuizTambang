@@ -11,7 +11,8 @@ import GameCanvas from './components/GameCanvas';
 import QuizOverlay from './components/QuizOverlay';
 import AdminPanel from './components/AdminPanel';
 import { motion, AnimatePresence } from 'motion/react';
-import { Swords, Trophy, User, Loader2, Settings, Copy, Share2, Hash, ArrowRight, Plus } from 'lucide-react';
+import { Swords, Trophy, User, Loader2, Settings, Copy, Share2, Hash, ArrowRight, Plus, Volume2, VolumeX } from 'lucide-react';
+import { soundManager } from './lib/sounds';
 
 export default function App() {
   const [socket, setSocket] = useState<Socket<ServerToClientEvents, ClientToServerEvents> | null>(null);
@@ -34,6 +35,8 @@ export default function App() {
   const [p2Id, setP2Id] = useState('');
   const [p1Nickname, setP1Nickname] = useState('');
   const [p2Nickname, setP2Nickname] = useState('');
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const playersCountRef = useRef(0);
 
   useEffect(() => {
     const newSocket: Socket<ServerToClientEvents, ClientToServerEvents> = io({
@@ -67,11 +70,17 @@ export default function App() {
     });
 
     newSocket.on('room_info', (data) => {
+      const prevCount = playersCountRef.current;
+      playersCountRef.current = data.players.length;
+      
       setPlayers(data.players);
       setCanStart(data.canStart);
       setGameState('WAITING_ROOM');
       setRoomId(data.roomId);
       
+      if (data.players.length > prevCount && prevCount > 0) {
+        soundManager.play('CLICK');
+      }
       const me = data.players.find(p => p.id === newSocket.id);
       if (me) {
         setIsGM(me.isGM);
@@ -120,6 +129,7 @@ export default function App() {
       setActionState('IDLE');
       setCurrentQuestion(null);
       setLastResult(null);
+      soundManager.play('GAME_START');
     });
 
     newSocket.on('server_sync_question', (data) => {
@@ -144,11 +154,34 @@ export default function App() {
       setActionState(data.actionState);
       setTugOfWarPos(data.tugOfWarPos);
       setGlobalTimeRemaining(data.globalTimeRemaining);
+
+      // Play sounds based on action state
+      if (data.actionState === 'P1_ATTACK' || data.actionState === 'P2_ATTACK') {
+        soundManager.play('ATTACK');
+      } else if (data.actionState === 'PARRY') {
+        soundManager.play('PARRY');
+      } else if (data.actionState === 'ENVIRONMENT_PUNISHMENT') {
+        soundManager.play('AZAB');
+      }
+
+      // Personal feedback sounds
+      const isP1 = socket?.id === p1Id;
+      const isP2 = socket?.id === p2Id;
+      const myAnswer = isP1 ? data.p1Answer : (isP2 ? data.p2Answer : null);
+      
+      if (myAnswer) {
+        if (myAnswer === data.correctAnswer) {
+          soundManager.play('CORRECT');
+        } else {
+          soundManager.play('INCORRECT');
+        }
+      }
     });
 
     newSocket.on('game_over', (data) => {
       setWinner(data);
       setGameState('GAME_OVER');
+      soundManager.play('GAME_OVER');
     });
 
     return () => {
@@ -189,6 +222,7 @@ export default function App() {
   const handleAnswer = (answer: string) => {
     if (socket && roomId) {
       socket.emit('client_submit_answer', { roomId, answer });
+      soundManager.play('CLICK');
     }
   };
 
@@ -204,8 +238,36 @@ export default function App() {
     setPlayers([]);
   };
 
+  const toggleSound = () => {
+    const newState = !soundEnabled;
+    setSoundEnabled(newState);
+    soundManager.toggle(newState);
+  };
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white font-sans overflow-hidden flex flex-col items-center justify-center">
+      {/* Admin Toggle Button */}
+      <div className="fixed top-6 right-6 z-50 flex space-x-2">
+        <button 
+          onClick={toggleSound}
+          className="p-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full transition-all group"
+          title={soundEnabled ? "Mute Sound" : "Unmute Sound"}
+        >
+          {soundEnabled ? (
+            <Volume2 size={20} className="text-gray-400 group-hover:text-white transition-colors" />
+          ) : (
+            <VolumeX size={20} className="text-red-400 group-hover:text-red-300 transition-colors" />
+          )}
+        </button>
+        <button 
+          onClick={() => setShowAdmin(true)}
+          className="p-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full transition-all group"
+          title="Game Master Settings"
+        >
+          <Settings size={20} className="text-gray-400 group-hover:text-white transition-colors" />
+        </button>
+      </div>
+
       <AnimatePresence mode="wait">
         {gameState === 'IDLE' && (
           <motion.div 
@@ -230,84 +292,81 @@ export default function App() {
               </p>
             </div>
             
-            <div className="flex flex-col space-y-4 w-full max-w-xs mx-auto">
-              <div className="relative group">
-                <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl blur opacity-30 group-focus-within:opacity-100 transition duration-1000 group-focus-within:duration-200"></div>
-                <div className="relative flex items-center bg-black rounded-xl border border-white/10">
-                  <User className="ml-4 text-gray-500" size={20} />
-                  <input 
-                    type="text"
-                    placeholder="Masukkan Nickname"
-                    value={nickname}
-                    onChange={e => setNickname(e.target.value)}
-                    maxLength={12}
-                    className="w-full bg-transparent px-4 py-4 font-bold text-white outline-none placeholder:text-gray-600"
-                  />
+            <div className="w-full max-w-md mx-auto space-y-6">
+              {/* Nickname Section */}
+              <div className="bg-white/5 p-6 rounded-3xl border border-white/10 backdrop-blur-sm space-y-4">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest block text-left">Profil Pemain</label>
+                <div className="relative group">
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl blur opacity-30 group-focus-within:opacity-100 transition duration-1000 group-focus-within:duration-200"></div>
+                  <div className="relative flex items-center bg-black rounded-xl border border-white/10">
+                    <User className="ml-4 text-gray-500" size={20} />
+                    <input 
+                      type="text"
+                      placeholder="Masukkan Nickname Anda"
+                      value={nickname}
+                      onChange={e => setNickname(e.target.value)}
+                      maxLength={12}
+                      className="w-full bg-transparent px-4 py-4 font-bold text-white outline-none placeholder:text-gray-600"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <button 
-                onClick={handleCreatePrivate}
-                className="group relative px-12 py-5 bg-blue-600 rounded-full font-black text-xl uppercase tracking-widest hover:bg-blue-500 transition-all shadow-2xl shadow-blue-600/30 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={!nickname.trim()}
-              >
-                <span className="relative z-10 flex items-center justify-center space-x-3">
-                  <span>Buat Room (GM)</span>
-                  <Plus size={24} className="group-hover:rotate-12 transition-transform" />
-                </span>
-              </button>
+              {roomCode && !nickname.trim() && (
+                <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl text-center">
+                  <p className="text-xs text-yellow-500 font-bold uppercase tracking-widest">
+                    Anda diundang ke room: <span className="text-white">{roomCode}</span>
+                  </p>
+                </div>
+              )}
 
-              <div className="flex items-center space-x-2">
-                <div className="h-[1px] bg-white/10 flex-grow" />
-                <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Atau Gabung Sebagai Pemain</span>
-                <div className="h-[1px] bg-white/10 flex-grow" />
-              </div>
-
-              <div className="space-y-2">
-                {roomCode && !nickname.trim() && (
-                  <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl text-center">
-                    <p className="text-xs text-yellow-500 font-bold uppercase tracking-widest">
-                      Anda diundang ke room: <span className="text-white">{roomCode}</span>
-                    </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Create Room Card */}
+                <div className="bg-white/5 p-6 rounded-3xl border border-white/10 backdrop-blur-sm flex flex-col items-center justify-between space-y-4 hover:bg-white/10 transition-colors">
+                  <div className="w-12 h-12 bg-blue-500/20 text-blue-500 rounded-full flex items-center justify-center mb-2">
+                    <Plus size={24} />
                   </div>
-                )}
-
-                <div className="relative">
-                  <input 
-                    type="text"
-                    placeholder="Masukkan Kode Room"
-                    value={roomCode}
-                    onChange={e => setRoomCode(e.target.value.toUpperCase())}
-                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-center font-mono tracking-widest uppercase focus:border-blue-500 outline-none transition-all"
-                  />
+                  <div className="text-center mb-4">
+                    <h3 className="font-bold text-white text-lg">Buat Room</h3>
+                    <p className="text-xs text-gray-400 mt-1">Sebagai Game Master</p>
+                  </div>
                   <button 
-                    onClick={() => handleJoinMatchmaking(roomCode, 'PLAYER')}
-                    className="absolute right-2 top-2 p-1.5 bg-green-600 rounded-lg hover:bg-green-500 transition-all disabled:opacity-50"
+                    onClick={handleCreatePrivate}
                     disabled={!nickname.trim()}
+                    className="w-full py-3 bg-blue-600 rounded-xl font-bold text-sm uppercase tracking-widest hover:bg-blue-500 transition-all shadow-lg shadow-blue-600/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <ArrowRight size={16} />
+                    Buat Baru
                   </button>
                 </div>
 
-                <button 
-                  onClick={() => handleJoinMatchmaking()}
-                  className="w-full py-3 bg-white/5 border border-white/10 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-white/10 transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
-                  disabled={!nickname.trim()}
-                >
-                  <Swords size={16} className="text-blue-500" />
-                  <span>Matchmaking Global</span>
-                </button>
+                {/* Join Room Card */}
+                <div className="bg-white/5 p-6 rounded-3xl border border-white/10 backdrop-blur-sm flex flex-col items-center justify-between space-y-4 hover:bg-white/10 transition-colors">
+                  <div className="w-12 h-12 bg-green-500/20 text-green-500 rounded-full flex items-center justify-center mb-2">
+                    <ArrowRight size={24} />
+                  </div>
+                  <div className="text-center w-full mb-4">
+                    <h3 className="font-bold text-white text-lg">Gabung Room</h3>
+                    <p className="text-xs text-gray-400 mt-1">Sebagai Pemain</p>
+                  </div>
+                  <div className="w-full flex space-x-2">
+                    <input 
+                      type="text"
+                      placeholder="KODE"
+                      value={roomCode}
+                      onChange={e => setRoomCode(e.target.value.toUpperCase())}
+                      maxLength={6}
+                      className="w-full bg-black/50 border border-white/10 rounded-xl px-2 py-3 text-center font-mono font-bold uppercase focus:border-green-500 outline-none transition-all"
+                    />
+                    <button 
+                      onClick={() => handleJoinMatchmaking(roomCode, 'PLAYER')}
+                      disabled={!nickname.trim() || !roomCode.trim()}
+                      className="px-4 bg-green-600 rounded-xl hover:bg-green-500 transition-all shadow-lg shadow-green-600/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                    >
+                      <ArrowRight size={20} />
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
-
-            <div className="pt-12">
-              <button 
-                onClick={() => setShowAdmin(true)}
-                className="flex items-center space-x-2 text-gray-500 hover:text-white transition-all uppercase text-xs font-bold tracking-widest"
-              >
-                <Settings size={16} />
-                <span>Game Master Settings</span>
-              </button>
             </div>
           </motion.div>
         )}
