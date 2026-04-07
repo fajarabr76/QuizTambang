@@ -1,0 +1,5 @@
+{
+  "name": "Pixel Battle Quiz",
+  "description": "A real-time pixelated battle quiz game with server-authoritative game loop.",
+  "requestFramePermissions": []
+}
